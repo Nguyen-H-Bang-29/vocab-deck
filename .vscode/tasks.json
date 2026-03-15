@@ -1,0 +1,28 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run Tests",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "pytest", "-v", "tests/test_endpoints.py"],
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Warmup Vocab",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "start.py", "--mode", "warmup", "--source", "vocab"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Web (Vocab)",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "start.py", "--mode", "web", "--source", "vocab"],
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}

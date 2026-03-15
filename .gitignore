@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual envs
+.venv/
+venv/
+
+# Env/config
+.env
+
+# Runtime/data artifacts
+data/runtime/
+data/processed/
+
+# Logs (fallback if any outside data/runtime)
+logs/
+*.log
+
+# Editor
+.vscode/*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db

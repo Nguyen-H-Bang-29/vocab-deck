@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vocab Deck - Practice</title>
+        <link rel="stylesheet" href="/static/styles/practice.css">
+</head>
+<body>
+    <div class="container">
+        <div class="top-bar">
+            <div>
+                <h1>🧠 Practice Session</h1>
+                <p id="profile-label">Profile: Player</p>
+            </div>
+            <button class="btn btn-secondary" onclick="goHome()">← Back to Dashboard</button>
+        </div>
+
+        <div class="card" id="main-card">
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Preparing your lecture and practice...</p>
+            </div>
+
+            <div id="session-note" class="session-note" style="display: none;"></div>
+
+            <div id="lecture-container" class="lecture-container">
+                <div class="lecture-header">
+                    <h2>📚 Today’s Vocabulary Lecture</h2>
+                    <p id="lecture-subtitle">Review these words before starting your practice session</p>
+                </div>
+                <div class="lecture-grid" id="lecture-grid"></div>
+                <div class="lecture-footer">
+                    <p style="color:#888;font-size:0.84em;margin-bottom:10px;">These words are prioritized in this session.</p>
+                    <button class="btn-lecture" onclick="beginPractice()">▶ Begin Practice</button>
+                </div>
+            </div>
+
+            <div id="quiz-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                </div>
+
+                <div class="question-header">
+                    <div class="question-number" id="question-number">Question 1 of 10</div>
+                    <div class="word" id="target-word">happy</div>
+                    <div class="question-text" id="question-text">Which word is a synonym?</div>
+                </div>
+
+                <div class="choices" id="choices"></div>
+
+                <div style="text-align: center;">
+                    <button class="btn btn-primary" id="submit-btn" onclick="submitAnswer()" disabled>Submit Answer</button>
+                    <button class="btn btn-primary" id="next-btn" onclick="nextQuestion()" style="display: none;">Next Question →</button>
+                </div>
+
+                <div class="feedback" id="feedback"></div>
+            </div>
+
+            <div class="results" id="results">
+                <h2>🎉 Challenge Complete!</h2>
+                <div class="score" id="final-score">0/10</div>
+                <div class="results-details">
+                    <div class="stat-card">
+                        <div class="stat-value" id="result-correct">0</div>
+                        <div class="stat-label">Correct</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="result-accuracy">0%</div>
+                        <div class="stat-label">Accuracy</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="result-streak">0</div>
+                        <div class="stat-label">Current Streak</div>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" onclick="goHome()">Back to Dashboard</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentQuestion = 0;
+        let questions = [];
+        let score = 0;
+        let username = 'Player';
+        let selectedAnswer = null;
+        let sessionId = null;
+
+        function wordLink(word, compact = false) {
+            const url = `https://www.merriam-webster.com/dictionary/${encodeURIComponent(word)}`;
+            if (compact) {
+                return `<a class="word-link" href="${url}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();">${word}<span class="word-link-icon">↗</span></a>`;
+            }
+            return `<a class="word-link" href="${url}" target="_blank" rel="noopener noreferrer">${word}</a>`;
+        }
+
+        function wordLookupIcon(word) {
+            const url = `https://www.merriam-webster.com/dictionary/${encodeURIComponent(word)}`;
+            return `<a class="word-link word-link-icon" href="${url}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="Open Merriam-Webster definition">↗</a>`;
+        }
+
+        function getUsernameFromContext() {
+            const qs = new URLSearchParams(window.location.search);
+            const fromQuery = qs.get('username');
+            const fromStorage = localStorage.getItem('vocab_deck_profile');
+            return fromQuery || fromStorage || 'Player';
+        }
+
+        async function startPracticeFlow() {
+            username = getUsernameFromContext();
+            document.getElementById('profile-label').textContent = `Profile: ${username}`;
+            currentQuestion = 0;
+            score = 0;
+            selectedAnswer = null;
+            sessionId = null;
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('session-note').style.display = 'none';
+            document.getElementById('lecture-container').style.display = 'none';
+            document.getElementById('quiz-container').style.display = 'none';
+            document.getElementById('results').style.display = 'none';
+
+            try {
+                const sessionResp = await fetch(`/api/practice-session/${encodeURIComponent(username)}`);
+                const session = await sessionResp.json();
+
+                sessionId = session.session_id;
+                questions = session.questions || [];
+                currentQuestion = session.current_index || 0;
+                score = session.score || 0;
+
+                renderLecture({ cards: session.lecture || [] });
+
+                document.getElementById('loading').style.display = 'none';
+                if (session.is_resumed && currentQuestion > 0) {
+                    const note = document.getElementById('session-note');
+                    note.textContent = `Resuming your in-progress challenge at question ${currentQuestion + 1} of ${questions.length}.`;
+                    note.style.display = 'block';
+                    beginPractice();
+                } else {
+                    document.getElementById('lecture-container').style.display = 'block';
+                }
+
+                if (!questions.length) {
+                    document.getElementById('lecture-subtitle').textContent = 'No practice questions available right now.';
+                }
+            } catch (error) {
+                alert('Error loading practice flow.');
+                console.error(error);
+            }
+        }
+
+        function renderLecture(lectureData) {
+            const grid = document.getElementById('lecture-grid');
+            const subtitle = document.getElementById('lecture-subtitle');
+            grid.innerHTML = '';
+
+            const cards = lectureData.cards || [];
+            subtitle.textContent = `Review ${cards.length > 0 ? 'these ' + cards.length + ' words' : 'your vocabulary'} before starting your practice session`;
+
+            if (!cards.length) {
+                grid.innerHTML = '<p style="color:#999;text-align:center;grid-column:1/-1;">No lecture words available yet. You can still begin practice.</p>';
+                return;
+            }
+
+            cards.forEach(card => {
+                const el = document.createElement('div');
+                el.className = 'lecture-word-card';
+                const wordTypeBadge = card.word_type
+                    ? `<span class="word-type-badge">${card.word_type}</span>` : '';
+
+                const sensesHtml = (card.senses || []).map(sense => {
+                    const badge = sense.word_type && sense.word_type !== card.word_type
+                        ? `<span class="word-type-badge">${sense.word_type}</span> ` : '';
+                    const syns = (sense.synonyms || []).map(s =>
+                        `<span class="word-chip">${wordLink(s, true)}</span>`).join('');
+                    const ants = (sense.antonyms || []).map(a =>
+                        `<span class="word-chip">${wordLink(a, true)}</span>`).join('');
+                    return `
+                        <div class="sense-block">
+                            <p class="sense-def">${badge}${sense.definition || ''}</p>
+                            ${syns ? `<div class="sense-label">Synonyms</div><div class="chip-row">${syns}</div>` : ''}
+                            ${ants ? `<div class="sense-label" style="margin-top:4px;">Antonyms</div><div class="chip-row">${ants}</div>` : ''}
+                        </div>`;
+                }).join('');
+
+                el.innerHTML = `
+                    <div class="lc-word-row">
+                        <span class="lc-word">${wordLink(card.word)}</span>
+                        ${wordTypeBadge}
+                    </div>
+                    ${sensesHtml || '<p style="color:#aaa;font-size:0.85em;">No definition available.</p>'}
+                `;
+                grid.appendChild(el);
+            });
+        }
+
+        function beginPractice() {
+            if (!questions.length) {
+                return;
+            }
+            document.getElementById('lecture-container').style.display = 'none';
+            document.getElementById('quiz-container').style.display = 'block';
+            displayQuestion();
+        }
+
+        function displayQuestion() {
+            if (currentQuestion >= questions.length) {
+                showResults();
+                return;
+            }
+
+            const question = questions[currentQuestion];
+            selectedAnswer = null;
+
+            const typeBadge = question.word_type
+                ? `<span class="word-type-badge">${question.word_type}</span>`
+                : '';
+            document.getElementById('question-number').textContent = `Question ${currentQuestion + 1} of ${questions.length}`;
+            document.getElementById('target-word').innerHTML = `${wordLink(question.word, true)} ${typeBadge}`;
+            document.getElementById('question-text').textContent = question.question;
+            document.getElementById('progress-fill').style.width = `${(currentQuestion / questions.length) * 100}%`;
+
+            const choicesContainer = document.getElementById('choices');
+            choicesContainer.innerHTML = '';
+            question.choices.forEach(choice => {
+                const btn = document.createElement('button');
+                btn.className = 'choice-btn';
+                btn.dataset.choice = choice;
+                btn.innerHTML = `<span>${choice}</span> ${wordLookupIcon(choice)}`;
+                btn.onclick = () => selectChoice(choice, btn);
+                choicesContainer.appendChild(btn);
+            });
+
+            document.getElementById('submit-btn').disabled = true;
+            document.getElementById('submit-btn').style.display = 'inline-block';
+            document.getElementById('next-btn').style.display = 'none';
+            document.getElementById('feedback').classList.remove('show');
+        }
+
+        function selectChoice(answer, btn) {
+            selectedAnswer = answer;
+            document.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            document.getElementById('submit-btn').disabled = false;
+        }
+
+        async function submitAnswer() {
+            if (!selectedAnswer) {
+                return;
+            }
+
+            const question = questions[currentQuestion];
+
+            try {
+                const response = await fetch(`/api/practice-session/${sessionId}/answer`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        answer: selectedAnswer,
+                        username: username,
+                        question_index: currentQuestion
+                    })
+                });
+
+                const result = await response.json();
+                score = result.score ?? (result.correct ? score + 1 : score);
+
+                const feedback = document.getElementById('feedback');
+                feedback.className = `feedback show ${result.correct ? 'correct' : 'incorrect'}`;
+                feedback.innerHTML = `
+                    <h3>${result.correct ? '✓ Correct!' : '✗ Incorrect'}</h3>
+                    <p>${result.explanation}</p>
+                `;
+
+                document.querySelectorAll('.choice-btn').forEach(btn => {
+                    btn.disabled = true;
+                    if (btn.dataset.choice === question.correct_answer) {
+                        btn.classList.add('correct');
+                    } else if (btn.dataset.choice === selectedAnswer && !result.correct) {
+                        btn.classList.add('incorrect');
+                    }
+                });
+
+                document.getElementById('submit-btn').style.display = 'none';
+                document.getElementById('next-btn').style.display = 'inline-block';
+            } catch (error) {
+                alert('Error submitting answer');
+                console.error(error);
+            }
+        }
+
+        function nextQuestion() {
+            currentQuestion++;
+            displayQuestion();
+        }
+
+        async function showResults() {
+            document.getElementById('quiz-container').style.display = 'none';
+            document.getElementById('results').style.display = 'block';
+
+            const accuracy = Math.round((score / questions.length) * 100);
+            document.getElementById('final-score').textContent = `${score}/${questions.length}`;
+            document.getElementById('result-correct').textContent = score;
+            document.getElementById('result-accuracy').textContent = `${accuracy}%`;
+
+            const dashboardResp = await fetch(`/api/dashboard/${encodeURIComponent(username)}`);
+            const dashboard = await dashboardResp.json();
+            document.getElementById('result-streak').textContent = dashboard.streaks.current;
+        }
+
+        function goHome() {
+            window.location.href = '/';
+        }
+
+        startPracticeFlow();
+    </script>
+</body>
+</html>
