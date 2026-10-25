@@ -148,17 +148,23 @@ Levels are assigned strictly by attempts + accuracy:
 - `proficient`: `attempts >= 4` and `accuracy >= 80%`
 - `master`: `attempts >= 8` and `accuracy >= 92%`
 
+### 1b) SRS override (explicit mastery)
+- A word rated `quality = 5` ("Easy") in `POST /api/srs/rate` is treated as already known by the user.
+- `build_level_dictionary` forces that word's `level` to `master` regardless of what `challenge_history` shows, and flags it `srs_mastered: true`.
+- This is a one-way signal: there's no automatic "un-mastering" — the word simply stops being selected (see §2), so it never resurfaces to be re-rated.
+
 ### 2) Controlled progression (practicing cap)
 - Let `X` be the maximum number of active practicing words (`PRACTICING_WORD_LIMIT`, default `120`).
+- Words flagged `srs_mastered` (§1b) are excluded entirely before pool construction — not just deprioritized to reinforcement.
 - Daily personalization pool is built in this order:
   1. all current `practicing` words
   2. then new `not-learned` words only if practicing count is below `X` (fill the remaining slots)
-  3. then `proficient/master` words as reinforcement fallback
+  3. then `proficient/master` words (excluding `srs_mastered`) as reinforcement fallback
 - This guarantees slow movement across the dictionary and prevents introducing more new words once active practicing reaches `X`.
 
 ### 3) API payload contract
 - `GET /api/dashboard/<username>` returns:
-  - `level_dict` (all words)
+  - `level_dict` (all words, including `srs_mastered: bool` per §1b)
   - `word_coverage.words` (all words with level metadata)
   - `word_coverage.level_counts`
   - `level_policy` (includes practicing limit and level taxonomy)

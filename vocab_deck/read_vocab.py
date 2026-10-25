@@ -10,8 +10,7 @@ import pypdf
 from .data_sources import get_default_pdf_path, get_source_spec
 from .thesaurus import ThesaurusAPI, load_api_key
 
-
-BASE_DIR = Path(__file__).resolve().parents[2]
+BASE_DIR = Path(__file__).resolve().parents[1]
 DATA_ROOT = BASE_DIR / "data"
 PROCESSED_DATA_DIR = DATA_ROOT / "processed"
 

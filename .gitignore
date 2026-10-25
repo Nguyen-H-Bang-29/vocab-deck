@@ -29,3 +29,6 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code local config (machine-specific paths)
+.claude/

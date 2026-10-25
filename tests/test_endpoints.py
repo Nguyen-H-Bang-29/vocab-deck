@@ -1,12 +1,11 @@
-import json
 import sqlite3
-from pathlib import Path
 
 import pytest
 
 import app as app_module
+import database
+import state as ext
 from vocab_deck.quiz import VocabChallenge
-
 
 # ---------------------------------------------------------------------------
 # Shared sample vocab large enough for real VocabChallenge distractor logic
@@ -42,7 +41,7 @@ BASE_CONFIG = {
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     db_path = tmp_path / "test_vocab_deck.db"
-    monkeypatch.setattr(app_module, "DB_FILE", db_path)
+    monkeypatch.setattr(ext, "DB_FILE", db_path)
 
     class StubChallengeGen:
         def generate_daily_challenge(self, num_questions=10, preferred_words=None):
@@ -78,11 +77,11 @@ def client(tmp_path, monkeypatch):
                 "explanation": "ok" if correct else "not ok",
             }
 
-    monkeypatch.setattr(app_module, "vocab_data", SAMPLE_VOCAB)
-    monkeypatch.setattr(app_module, "challenge_gen", StubChallengeGen())
-    monkeypatch.setattr(app_module, "APP_CONFIG", dict(BASE_CONFIG))
+    monkeypatch.setattr(ext, "vocab_data", SAMPLE_VOCAB)
+    monkeypatch.setattr(ext, "challenge_gen", StubChallengeGen())
+    monkeypatch.setattr(ext, "APP_CONFIG", dict(BASE_CONFIG))
 
-    app_module.init_db()
+    database.init_db()
     app_module.app.config.update(TESTING=True)
 
     with app_module.app.test_client() as test_client:
@@ -95,13 +94,13 @@ def client(tmp_path, monkeypatch):
 @pytest.fixture()
 def real_client(tmp_path, monkeypatch):
     db_path = tmp_path / "test_vocab_deck_real.db"
-    monkeypatch.setattr(app_module, "DB_FILE", db_path)
+    monkeypatch.setattr(ext, "DB_FILE", db_path)
     # No API key: thesaurus is None, challenge_gen built from enriched data only
-    monkeypatch.setattr(app_module, "vocab_data", SAMPLE_VOCAB)
-    monkeypatch.setattr(app_module, "challenge_gen", VocabChallenge(SAMPLE_VOCAB, thesaurus=None))
-    monkeypatch.setattr(app_module, "APP_CONFIG", dict(BASE_CONFIG))
+    monkeypatch.setattr(ext, "vocab_data", SAMPLE_VOCAB)
+    monkeypatch.setattr(ext, "challenge_gen", VocabChallenge(SAMPLE_VOCAB, thesaurus=None))
+    monkeypatch.setattr(ext, "APP_CONFIG", dict(BASE_CONFIG))
 
-    app_module.init_db()
+    database.init_db()
     app_module.app.config.update(TESTING=True)
 
     with app_module.app.test_client() as test_client:
@@ -550,3 +549,47 @@ def test_dashboard_no_api_key(real_client):
     first_word = next(iter(payload["level_dict"]))
     assert payload["level_dict"][first_word]["level"] in {"not-learned", "practicing", "proficient", "master"}
     assert payload["level_dict"][first_word]["color"].startswith("#")
+
+
+def test_srs_easy_rating_marks_word_mastered(client):
+    test_client, _ = client
+
+    response = test_client.post(
+        "/api/srs/rate",
+        json={"username": "tester", "word": "abound", "quality": 5},
+    )
+    assert response.status_code == 200
+
+    dashboard = test_client.get("/api/dashboard/tester").get_json()
+    entry = dashboard["level_dict"]["abound"]
+    assert entry["level"] == "master"
+    assert entry["srs_mastered"] is True
+
+
+def test_srs_easy_word_excluded_from_personalization_pool(client):
+    import services
+
+    test_client, _ = client
+    test_client.post(
+        "/api/srs/rate",
+        json={"username": "tester", "word": "abound", "quality": 5},
+    )
+
+    level_dict = services.build_level_dictionary("tester")
+    pool = services.personalization_pool(level_dict, limit=180)
+    assert "abound" not in pool
+
+
+def test_srs_non_easy_rating_does_not_mark_mastered(client):
+    test_client, _ = client
+
+    response = test_client.post(
+        "/api/srs/rate",
+        json={"username": "tester", "word": "abound", "quality": 3},
+    )
+    assert response.status_code == 200
+
+    dashboard = test_client.get("/api/dashboard/tester").get_json()
+    entry = dashboard["level_dict"]["abound"]
+    assert entry["srs_mastered"] is False
+    assert entry["level"] == "not-learned"

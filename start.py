@@ -8,6 +8,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 PROJECT_ROOT = Path(__file__).parent
 PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
 
@@ -42,13 +46,17 @@ def run_warmup(source: str, pdf: str = "", publish_web: bool = False):
     print(f"Warm-up: source={source}")
     print("=" * 60)
 
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+
     cmd = [sys.executable, "-m", "vocab_deck.read_vocab", "--source", source]
     if pdf:
         cmd.extend(["--pdf", pdf])
     if publish_web:
         cmd.append("--publish-web")
 
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, env=env)
 
 
 def run_web(source: str):
@@ -76,9 +84,9 @@ def main():
                 return
             run_web(args.source)
     except subprocess.CalledProcessError:
-        print("\n❌ Warm-up command failed.")
+        print("\nERROR: Warm-up command failed.")
         print("Ensure API key is set if enrichment is required:")
-        print("  $env:MERRIAM_WEBSTER_API_KEY = 'your-key'")
+        print("  export MERRIAM_WEBSTER_API_KEY='your-key'")
     except KeyboardInterrupt:
         print("\n\nStopped.")
 

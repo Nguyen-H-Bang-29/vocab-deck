@@ -1,0 +1,29 @@
+# Version control
+.git/
+.github/
+
+# Virtual environments
+.venv/
+
+# Runtime data — DB and logs come from the mounted volume, never the image
+data/runtime/
+
+# Raw source PDFs are large and not needed at runtime
+data/raw/
+
+# data/processed/ is intentionally NOT excluded — enriched JSON is baked into the image
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Dev/test artifacts
+tests/
+scripts/
+
+# Secrets
+.env

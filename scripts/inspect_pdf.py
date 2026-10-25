@@ -1,5 +1,6 @@
-import pypdf
 from pathlib import Path
+
+import pypdf
 
 PDF_PATH = Path(__file__).parent / "data" / "raw" / "GregMat Vocab.pdf"
 

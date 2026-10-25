@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
 
 
 @dataclass(frozen=True)
@@ -11,10 +10,10 @@ class SourceSpec:
     label: str
     default_pdf: str
     line_regex: str
-    skip_prefixes: List[str]
+    skip_prefixes: list[str]
 
 
-SOURCE_SPECS: Dict[str, SourceSpec] = {
+SOURCE_SPECS: dict[str, SourceSpec] = {
     "vocab": SourceSpec(
         key="vocab",
         label="GregMat Vocabulary",

@@ -1,0 +1,41 @@
+# fly.toml — vocab-deck
+#
+# Before first deploy:
+#   1. Replace <YOUR-APP-NAME> with the name you chose in `fly apps create`
+#   2. Replace <YOUR-REGION> with your closest region (e.g. sin, nrt, syd, lax, iad)
+#      Run `fly platform regions` to list all options.
+#   3. Create the volume in the SAME region:
+#      fly volumes create vocab_runtime --size 1 --region <YOUR-REGION>
+#   4. Set secrets:
+#      fly secrets set ANTHROPIC_API_KEY="..." MERRIAM_WEBSTER_API_KEY="..."
+#   5. fly deploy
+
+app = "vocab-deck-bang"
+primary_region = "sin"
+
+[build]
+
+[env]
+  VOCAB_DECK_SOURCE = "vocab"
+  VOCAB_DECK_RUNTIME_DIR = "/data/runtime"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 25
+    soft_limit = 20
+
+[[mounts]]
+  source = "vocab_runtime"
+  destination = "/data/runtime"
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
